@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>彩色密碼：進化版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f8fafc;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .slot {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+        }
+        .slot.selected {
+            outline: 3px solid #6366f1;
+            outline-offset: 2px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        }
+        .hint-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0,0,0,0.3);
+        }
+        /* A: 完全正確 - 亮紅色 */
+        .hint-a { background: radial-gradient(circle at 30% 30%, #ff4d4d, #990000); box-shadow: 0 0 10px #ef4444; }
+        /* B: 顏色對位置錯 - 亮銀色 (對比增強) */
+        .hint-b { background: radial-gradient(circle at 30% 30%, #e2e8f0, #94a3b8); box-shadow: 0 0 10px rgba(255,255,255,0.4); border: 1px solid #fff; }
+        
+        .history-row {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .color-btn:active { transform: scale(0.9); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- 頂部資訊 -->
+    <div class="w-full max-w-md mt-4 mb-6 text-center">
+        <h1 class="text-4xl font-black tracking-tight text-white mb-1">MASTERMIND</h1>
+        <p class="text-indigo-300 font-medium uppercase text-xs tracking-widest">Logic Challenge</p>
+    </div>
+
+    <!-- 主遊戲區 -->
+    <div class="w-full max-w-md glass rounded-3xl p-4 shadow-2xl flex flex-col gap-4">
+        
+        <!-- 設定與控制 -->
+        <div class="flex justify-between items-center px-2">
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="allow-duplicates" class="sr-only peer">
+                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                <span class="ml-3 text-sm font-medium text-slate-300">允許重複</span>
+            </label>
+            <button id="new-game-btn" class="bg-slate-700 hover:bg-slate-600 text-white text-sm px-4 py-2 rounded-xl transition-colors">新局</button>
+        </div>
+
+        <!-- 歷史紀錄 -->
+        <div id="history-area" class="h-80 overflow-y-auto space-y-2 px-2 scroll-smooth bg-black/20 rounded-2xl p-3 border border-white/5">
+            <!-- 記錄插入 -->
+        </div>
+
+        <!-- 輸入操作區 -->
+        <div class="bg-black/30 rounded-2xl p-4 border border-white/5">
+            <div class="flex items-center justify-between gap-4 mb-6">
+                <div id="input-slots" class="flex gap-3">
+                    <div class="slot w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-xs text-slate-500" data-idx="0">1</div>
+                    <div class="slot w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-xs text-slate-500" data-idx="1">2</div>
+                    <div class="slot w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-xs text-slate-500" data-idx="2">3</div>
+                    <div class="slot w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-xs text-slate-500" data-idx="3">4</div>
+                </div>
+                <button id="submit-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:hover:bg-indigo-600 text-white font-bold py-3 rounded-2xl shadow-lg transition-all" disabled>提交</button>
+            </div>
+
+            <!-- 顏色盤 -->
+            <div id="palette" class="grid grid-cols-6 gap-3">
+                <button class="color-btn w-full aspect-square rounded-full shadow-lg bg-red-500" data-color="#ef4444"></button>
+                <button class="color-btn w-full aspect-square rounded-full shadow-lg bg-blue-500" data-color="#3b82f6"></button>
+                <button class="color-btn w-full aspect-square rounded-full shadow-lg bg-emerald-500" data-color="#10b981"></button>
+                <button class="color-btn w-full aspect-square rounded-full shadow-lg bg-amber-400" data-color="#fbbf24"></button>
+                <button class="color-btn w-full aspect-square rounded-full shadow-lg bg-purple-500" data-color="#a855f7"></button>
+                <button class="color-btn w-full aspect-square rounded-full shadow-lg bg-pink-500" data-color="#ec4899"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 遊戲規則提示 -->
+    <div class="mt-6 flex gap-6 text-xs font-medium text-slate-400">
+        <div class="flex items-center gap-2"><span class="hint-dot hint-a"></span> 正確位置 (A)</div>
+        <div class="flex items-center gap-2"><span class="hint-dot hint-b"></span> 顏色正確 (B)</div>
+    </div>
+
+    <!-- 結算視窗 -->
+    <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 hidden px-4">
+        <div class="glass max-w-sm w-full p-8 rounded-[2.5rem] text-center border-indigo-500/30">
+            <div id="modal-icon" class="text-6xl mb-4">🏆</div>
+            <h2 id="modal-title" class="text-3xl font-black text-white mb-2">YOU WIN!</h2>
+            <p id="modal-desc" class="text-slate-400 mb-6"></p>
+            <div id="reveal-code" class="flex justify-center gap-2 mb-8"></div>
+            <button id="modal-reset" class="w-full bg-white text-slate-900 font-bold py-4 rounded-2xl text-lg hover:bg-indigo-100 transition-colors">再挑戰一次</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 音效引擎 (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, type, duration, vol = 0.1) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const sounds = {
+            select: () => playTone(600, 'sine', 0.1),
+            fill: () => playTone(800, 'sine', 0.1),
+            delete: () => playTone(300, 'sine', 0.15),
+            submit: () => { playTone(500, 'triangle', 0.1); setTimeout(() => playTone(700, 'triangle', 0.1), 50); },
+            win: () => { [523, 659, 783, 1046].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.4, 0.05), i * 100)); },
+            fail: () => { [300, 200, 150].forEach((f, i) => setTimeout(() => playTone(f, 'sawtooth', 0.3, 0.05), i * 150)); }
+        };
+
+        // --- 遊戲邏輯 ---
+        const COLORS = ["#ef4444", "#3b82f6", "#10b981", "#fbbf24", "#a855f7", "#ec4899"];
+        let secretCode = [];
+        let currentGuess = [null, null, null, null];
+        let selectedIdx = 0; // 預設選中第一個
+        let attempts = [];
+        let isGameOver = false;
+
+        const historyArea = document.getElementById('history-area');
+        const slots = document.querySelectorAll('.slot');
+        const submitBtn = document.getElementById('submit-btn');
+
+        function initGame() {
+            isGameOver = false;
+            attempts = [];
+            currentGuess = [null, null, null, null];
+            selectedIdx = 0;
+            const allowDupes = document.getElementById('allow-duplicates').checked;
+
+            if (allowDupes) {
+                secretCode = Array.from({ length: 4 }, () => COLORS[Math.floor(Math.random() * COLORS.length)]);
+            } else {
+                secretCode = [...COLORS].sort(() => 0.5 - Math.random()).slice(0, 4);
+            }
+
+            renderHistory();
+            updateSlots();
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        function updateSlots() {
+            slots.forEach((slot, i) => {
+                slot.classList.toggle('selected', i === selectedIdx);
+                if (currentGuess[i]) {
+                    slot.style.backgroundColor = currentGuess[i];
+                    slot.style.borderColor = 'rgba(255,255,255,0.3)';
+                    slot.innerText = "";
+                } else {
+                    slot.style.backgroundColor = 'transparent';
+                    slot.style.borderColor = '';
+                    slot.innerText = i + 1;
+                }
+            });
+            submitBtn.disabled = currentGuess.includes(null) || isGameOver;
+        }
+
+        // 點擊插槽進行選定
+        slots.forEach(slot => {
+            slot.addEventListener('click', () => {
+                if (isGameOver) return;
+                const idx = parseInt(slot.dataset.idx);
+                // 如果點擊的是已經有顏色的，則視為刪除
+                if (currentGuess[idx]) {
+                    currentGuess[idx] = null;
+                    sounds.delete();
+                } else {
+                    sounds.select();
+                }
+                selectedIdx = idx;
+                updateSlots();
+            });
+        });
+
+        // 顏色盤輸入
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (isGameOver) return;
+                const color = btn.dataset.color;
+                currentGuess[selectedIdx] = color;
+                sounds.fill();
+                
+                // 自動跳到下一個空的插槽
+                const nextEmpty = currentGuess.indexOf(null);
+                if (nextEmpty !== -1) {
+                    selectedIdx = nextEmpty;
+                }
+                updateSlots();
+            });
+        });
+
+        // 提交逻辑
+        submitBtn.addEventListener('click', () => {
+            if (isGameOver) return;
+            sounds.submit();
+
+            const result = calculateAB(currentGuess, secretCode);
+            attempts.push({ guess: [...currentGuess], ...result });
+            
+            renderHistory();
+            
+            if (result.a === 4) {
+                endGame(true);
+            } else if (attempts.length >= 10) {
+                endGame(false);
+            }
+
+            // 清空並選回第一個
+            currentGuess = [null, null, null, null];
+            selectedIdx = 0;
+            updateSlots();
+        });
+
+        function calculateAB(guess, secret) {
+            let a = 0, b = 0;
+            let sCopy = [...secret], gCopy = [...guess];
+            for(let i=0; i<4; i++) {
+                if(gCopy[i] === sCopy[i]) { a++; sCopy[i]=null; gCopy[i]=null; }
+            }
+            for(let i=0; i<4; i++) {
+                if(gCopy[i] !== null) {
+                    let idx = sCopy.indexOf(gCopy[i]);
+                    if(idx !== -1) { b++; sCopy[idx]=null; }
+                }
+            }
+            return { a, b };
+        }
+
+        function renderHistory() {
+            historyArea.innerHTML = attempts.map((att, i) => `
+                <div class="history-row flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                    <span class="text-[10px] text-slate-500 font-mono">${String(i+1).padStart(2,'0')}</span>
+                    <div class="flex gap-2">
+                        ${att.guess.map(c => `<div class="w-7 h-7 rounded-full border border-white/10" style="background-color:${c}"></div>`).join('')}
+                    </div>
+                    <div class="flex gap-1 min-w-[40px] justify-end">
+                        ${Array(att.a).fill('<div class="hint-dot hint-a"></div>').join('')}
+                        ${Array(att.b).fill('<div class="hint-dot hint-b"></div>').join('')}
+                        ${Array(4 - (att.a + att.b)).fill('<div class="hint-dot bg-white/5"></div>').join('')}
+                    </div>
+                </div>
+            `).join('');
+            historyArea.scrollTop = historyArea.scrollHeight;
+        }
+
+        function endGame(win) {
+            isGameOver = true;
+            setTimeout(() => {
+                if(win) sounds.win(); else sounds.fail();
+                document.getElementById('modal-icon').innerText = win ? "🎉" : "💀";
+                document.getElementById('modal-title').innerText = win ? "破解成功！" : "任務失敗";
+                document.getElementById('modal-desc').innerText = win ? `優秀！你在第 ${attempts.length} 步就解開了密碼。` : "已達嘗試上限，再接再厲。";
+                const reveal = document.getElementById('reveal-code');
+                reveal.innerHTML = secretCode.map(c => `<div class="w-10 h-10 rounded-full border border-white/20 shadow-xl" style="background-color:${c}"></div>`).join('');
+                document.getElementById('modal').classList.remove('hidden');
+            }, 500);
+        }
+
+        document.getElementById('new-game-btn').addEventListener('click', () => { sounds.select(); initGame(); });
+        document.getElementById('modal-reset').addEventListener('click', initGame);
+
+        // 啟動遊戲
+        window.onload = initGame;
+    </script>
+</body>
+</html>
